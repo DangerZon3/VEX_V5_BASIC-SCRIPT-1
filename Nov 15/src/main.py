@@ -2,7 +2,7 @@
 from vex import *
 import time
     
-SIDE = 1 #-1 for Left, 1 for Right (technically any number besides 1 is left)
+SIDE = -1 #-1 for Left, 1 for Right (technically any number besides 1 is left)
 # Put left-side (less familiar auton, SIDE = -1) on slot 2
 
 brain = Brain()
@@ -81,12 +81,15 @@ def runauton(cmdtuple):
         Roller_Top.stop()
     if len(cmdtuple) > 6:
         tt(cmdtuple[6])
+    if len(cmdtuple) > 7:
+        hh(cmdtuple[7])
     BackL.spin_for(FORWARD, leftDegree, DEGREES, False)
     FrontL.spin_for(FORWARD, leftDegree, DEGREES, False)
     BackR.spin_for(REVERSE, rightDegree, DEGREES, False)
     FrontR.spin_for(REVERSE, rightDegree, DEGREES, True)
     if len(cmdtuple[0]) == 1:
         time.sleep(0.33)
+        
 
 def pistons_detect():
     global atoggle
@@ -147,10 +150,10 @@ def autonomous():
     global SIDE
     brain.screen.clear_screen()
     brain.screen.print("autonomous code")
-    #remember, the param is (direction, velocity, distance, first gauge & unjammer speed, bottom roller speed, top roller speed, tongue)
+    #remember, the param is (direction, velocity, distance, first gauge & unjammer speed, bottom roller speed, top roller speed, tongue, hood)
     if SIDE == 1:
         runauton(("r", 40, 40))
-        runauton(("f", 40, 585, 75, -85, 95))
+        runauton(("f", 40, 585, 75, -95, 95))
         time.sleep(0.2)
         runauton(("b", 20, 70))
         runauton(("l", 40, 135))
@@ -159,12 +162,13 @@ def autonomous():
         runauton(("f", 0, 0, -50, 20))
         time.sleep(0.1)
         runauton(("b", 0, 0, 50, 20, -30))
-        time.sleep(0.1)
-        runauton(("b", 70, 1175))
-        runauton(("r", 50, 55))
-        runauton(("f", 100, 460))
-        runauton(("f", 10, 10))
-        #still cannnot align w/ long goal, may need to add slight left turn after outtaking:)
+        time.sleep(0.2)
+        runauton(("l", 40, 20))
+        runauton(("b", 70, 1185))
+        runauton(("r", 50, 90))
+        runauton(("f", 90, 460))
+        runauton(("b", 10, 10))
+        runauton(("f", 0, 0, 75, -75, 100, False, True))
     else:
         runauton(("l", 40, 40))
         runauton(("f", 25, 585, -75, -75))
@@ -178,7 +182,6 @@ def autonomous():
         runauton(("f", 50, 700, 0, 0, 0))
         runauton(("l", 90, 90))
         runauton(("f", 100, 445, -75, -75, 0, True))
-
 def temp():
     while True:
         motortemps = [round(BackL.temperature()), round(FrontL.temperature()), round(BackR.temperature()), round(FrontR.temperature())]
