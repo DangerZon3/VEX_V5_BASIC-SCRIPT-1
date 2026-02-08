@@ -1,21 +1,16 @@
-# ---------------------------------------------------------------------------- #
-#                                                                              #
-#   Module:       main.py                                                      #
-#   Author:       lsong                                                        #
-#   Created:      11/26/2025, 9:11:35 PM                                       #
-#   Description:  V5 project                                                   #
-#                                                                              #
-# ---------------------------------------------------------------------------- #
+#   Module:       main.py
+#   Author:       lsong
+#   Created:      11/26/2025, 9:11:35 PM
+#   Description:  V5 project
 
-# Library imports
 from vex import *
 import time
 
-SIDE = "SKILLS" #"LEFT" or "RIGHT" or "SKILLS"
+#--------- Program Settings ---------
 
-# Brain should be defined by default
+SIDE = "RIGHT" #"LEFT" or "RIGHT" or "SKILLS"
+
 brain=Brain()
-
 motorLeft_1 = Motor(Ports.PORT1, GearSetting.RATIO_6_1, False)
 motorLeft_2 = Motor(Ports.PORT2, GearSetting.RATIO_6_1, False)
 motorLeft_3 = Motor(Ports.PORT3, GearSetting.RATIO_6_1, False)
@@ -31,10 +26,13 @@ tongue = DigitalOut(brain.three_wire_port.a)
 aligner = DigitalOut(brain.three_wire_port.b)
 descorer = DigitalOut(brain.three_wire_port.c)
 
-controller_1 = Controller()
+controller_1 = Controller(PRIMARY)
+controller_2 = Controller(PARTNER)
 
 L_MOTORS = [motorLeft_1, motorLeft_2, motorLeft_3] #All motors on the left
 R_MOTORS = [motorRight_1, motorRight_2, motorRight_3] #All motors on the right
+
+#---------- Main Program ------------
 motors = L_MOTORS + R_MOTORS
 sensitivity = 2
 
@@ -121,13 +119,22 @@ secondMotor.set_velocity(50, PERCENT)
 flapper.set_velocity(50, PERCENT)
 
 def temp():
+    t = 120
     while True:
-        motortemps = [round(motorLeft_1.temperature()), round(motorLeft_2.temperature()), round(motorLeft_3.temperature()), round(motorRight_1.temperature()), round(motorRight_2.temperature()), round(motorRight_3.temperature())]
-        controller_1.screen.clear_screen()
-        controller_1.screen.print(motortemps[0], motortemps[1], motortemps[2], motortemps[3], motortemps[4], motortemps[5])
+        motortemps = [round(motorLeft_1.temperature()), round(motorLeft_2.temperature()), round(motorLeft_3.temperature()),
+                      round(motorRight_1.temperature()), round(motorRight_2.temperature()), round(motorRight_3.temperature())]
+        controller_2.screen.clear_screen()
+        controller_2.screen.set_cursor(1, 1)
+        controller_2.screen.print(motortemps[0], motortemps[1], motortemps[2])
+        controller_2.screen.set_cursor(2, 1)
+        controller_2.screen.print(motortemps[3], motortemps[4], motortemps[5])
+        controller_2.screen.set_cursor(3, 1)
+        controller_2.screen.print(t)
         if 55 in motortemps:
-            controller_1.rumble("...")
-        sleep(2000)
+            controller_1.rumble("..")
+            controller_2.rumble("..")
+        sleep(1000)
+        t -= 1
 
 def pistons():
     tongue.set(not tongue.value())
@@ -171,19 +178,28 @@ def user_control():
 
 LEFT_auton_actions = [
     Action("F", 600, 25),
-    Action("L", 120, 15),
-    Action("F", 700, 15, 2),
-    Action("L", 480, 15),
-    Action("B", 200, 15),
+    Action("L", 150, 15),
+    Action("F", 800, 15, 2),
+    Action("R", 350, 15, 2),
+    Action("F", 500, 15),
+    Action("W", 2500, 0, -1),
+    Action("B", 2000, 25),
+    Action("R", 650, 15, 5),
+    Action("F", 700, 25),
+    Action("W", 2000, 0, 1),
 ]
 
 RIGHT_auton_actions = [
-    Action("F", 600, 25),
-    Action("R", 120, 15),
-    Action("F", 700, 15, 2),
-    Action("L", 325, 15, 2),
-    Action("F", 500, 15),
-    Action("W", 3000, 0, -1), #wait 1000 ms
+    Action("F", 500, 25),
+    Action("R", 150, 15),
+    Action("F", 800, 15, 2),
+    Action("L", 350, 15, 2),
+    Action("F", 600, 15),
+    Action("W", 2500, 0, -1),
+    Action("B", 2000, 25),
+    Action("L", 650, 15, 5),
+    Action("F", 700, 25),
+    Action("W", 2000, 0, 1),
 ]
 
 SKILLS_auton_actions = [
@@ -218,14 +234,3 @@ brain.screen.print("""
 """)
 aligner.set(not aligner.value())
 comp = Competition(user_control, autonomous)
-
-"""     elif controller_1.buttonX.pressing(): #manual flapper
-            flapper.spin(FORWARD)
-        elif controller_1.buttonB.pressing(): #manual flapper reverse
-            flapper.spin(REVERSE)
-        elif controller_1.buttonY.pressing(): #manual intake
-            intakeMotor.spin(FORWARD)
-            secondMotor.spin(FORWARD)
-        elif controller_1.buttonA.pressing(): #manual intake reverse
-            intakeMotor.spin(REVERSE)
-            secondMotor.spin(REVERSE)"""
