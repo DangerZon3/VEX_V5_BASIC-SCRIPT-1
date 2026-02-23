@@ -23,7 +23,7 @@ secondMotor = Motor(Ports.PORT12, GearSetting.RATIO_18_1, False)
 
 tongue = DigitalOut(brain.three_wire_port.a)
 aligner = DigitalOut(brain.three_wire_port.b)
-descorer = DigitalOut(brain.three_wire_port.c)
+descorer = DigitalOut(brain.three_wire_port.c) #also stopper
 
 controller_1 = Controller(PRIMARY)
 controller_2 = Controller(PARTNER)
@@ -42,59 +42,50 @@ def enum(iterable): #enumerate() disallowed in VEX Python
         index += 1
 
 class Action: #One unit of action run during auton
-    def __init__(self, action, degrees, velocity=50, i_o_id=0):
+    def __init__(self, action, degrees, velocity=50, special=0):
         self.action = action
         self.degrees = degrees
         self.velocity = velocity
-        self.i_o_id = i_o_id
+        self.special = special
 
     def execute(self):
-        if self.i_o_id == 1: #intake
+        if self.special == 1: #intake
             intakeMotor.spin(FORWARD)
             secondMotor.spin(FORWARD)
-        elif self.i_o_id == -1: #lower
+        elif self.special == -1: #lower
             intakeMotor.spin(REVERSE)
             secondMotor.spin(REVERSE)
-        elif self.i_o_id == 2: #center
+        elif self.special == 2: #center
             intakeMotor.spin(FORWARD)
             secondMotor.spin(FORWARD)
             flapper.spin(FORWARD)
-        elif self.i_o_id == 3: #upper
+        elif self.special == 3: #upper
             intakeMotor.spin(FORWARD)
             secondMotor.spin(FORWARD)
             flapper.spin(REVERSE)
-        elif self.i_o_id == 5:
+        elif self.special == 4:
+            ds()
+        elif self.special == 5:
             pistons()
         for motor in motors:
             motor.set_velocity(self.velocity, PERCENT)
         if self.action.upper() in ["F", "FWD","FORWARD"]:
             for i, motor in enum(motors):
-                if i == len(motors) - 1:
-                    motor.spin_for(FORWARD, self.degrees, DEGREES, True)
-                else:
-                    motor.spin_for(FORWARD, self.degrees, DEGREES, False)
+                motor.spin_for(FORWARD, self.degrees, DEGREES, i == len(motors) - 1)
         elif self.action.upper() in ["B", "BWD", "BACKWARD"]:
             for i, motor in enum(motors):
-                if i == len(motors) - 1:
-                    motor.spin_for(REVERSE, self.degrees, DEGREES, True)
-                else:
-                    motor.spin_for(REVERSE, self.degrees, DEGREES, False)
+                motor.spin_for(REVERSE, self.degrees, DEGREES, i == len(motors) - 1)
         elif self.action.upper() in ["L", "LEFT"]:
             for l_motor in L_MOTORS:
                 l_motor.spin_for(REVERSE, self.degrees, DEGREES, False)
             for i, r_motor in enum(R_MOTORS):
-                if i == len(R_MOTORS) - 1:
-                    r_motor.spin_for(FORWARD, self.degrees, DEGREES, True)
-                else:
-                    r_motor.spin_for(FORWARD, self.degrees, DEGREES, False)
+                r_motor.spin_for(FORWARD, self.degrees, DEGREES, i == len(R_MOTORS) - 1)
+
         elif self.action.upper() in ["R", "RIGHT"]:
             for l_motor in L_MOTORS:
                 l_motor.spin_for(FORWARD, self.degrees, DEGREES, False)
             for i, r_motor in enum(R_MOTORS):
-                if i == len(R_MOTORS) - 1:
-                    r_motor.spin_for(REVERSE, self.degrees, DEGREES, True)
-                else:
-                    r_motor.spin_for(REVERSE, self.degrees, DEGREES, False)
+                r_motor.spin_for(REVERSE, self.degrees, DEGREES, i == len(R_MOTORS) - 1)
         elif self.action.upper() in ["W", "WAIT"]:
             sleep(self.degrees) #degrees used as milliseconds here
         intakeMotor.stop()
@@ -113,27 +104,30 @@ def joyStick():
     motorRight_3.spin(FORWARD, speedr, VOLT)
     wait(10, MSEC)
 
-intakeMotor.set_velocity(90, PERCENT)
-secondMotor.set_velocity(90, PERCENT)
-flapper.set_velocity(90, PERCENT)
+intakeMotor.set_velocity(70, PERCENT)
+secondMotor.set_velocity(70, PERCENT)
+flapper.set_velocity(70, PERCENT)
 
 def temp():
-    t = 120
+    t = 105
     while True:
-        motortemps = [round(motorLeft_1.temperature()), round(motorLeft_2.temperature()), round(motorLeft_3.temperature()),
-                      round(motorRight_1.temperature()), round(motorRight_2.temperature()), round(motorRight_3.temperature())]
-        controller_2.screen.clear_screen()
-        controller_2.screen.set_cursor(1, 1)
-        controller_2.screen.print(motortemps[0], motortemps[1], motortemps[2])
-        controller_2.screen.set_cursor(2, 1)
-        controller_2.screen.print(motortemps[3], motortemps[4], motortemps[5])
-        controller_2.screen.set_cursor(3, 1)
-        controller_2.screen.print(t)
+        motortemps = [round(motor.temperature()) for motor in motors]
+        controller_1.screen.clear_screen()
+        controller_1.screen.set_cursor(1, 1)
+        controller_1.screen.print("L:", motortemps[0], motortemps[1], motortemps[2])
+        controller_1.screen.set_cursor(2, 1)
+        controller_1.screen.print("R:", motortemps[3], motortemps[4], motortemps[5])
+        controller_1.screen.set_cursor(3, 1)
+        controller_1.screen.print("Time remaining:", t)
         if 55 in motortemps:
-            controller_1.rumble("..")
-            controller_2.rumble("..")
+            controller_1.rumble("...")
         sleep(1000)
-        t -= 1
+        if comp.is_driver_control() and comp.is_enabled() and t > 0:
+            t -= 1
+            if t == 20:
+                controller_1.rumble("-")
+            if t == 10 or t == 5:
+                controller_1.rumble("--")
 
 def pistons():
     tongue.set(not tongue.value())
@@ -149,7 +143,6 @@ def user_control():
     controller_1.axis1.changed(joyStick)
     controller_1.buttonA.pressed(pistons)
     controller_1.buttonX.pressed(ds)
-    Thread(temp)
     while True:
         if controller_1.buttonR1.pressing(): #center
             intakeMotor.spin(FORWARD)
@@ -195,28 +188,37 @@ RIGHT_auton_actions = [
     Action("W", 2250, 0, -1),
     Action("B", 2200, 25),
     Action("L", 600, 15, 5),
-    Action("F", 600, 30),
+    Action("F", 575, 30),
     Action("W", 1500, 0, 1),
     Action("W", 0, 0, 5),
-    Action("L", 50, 15),
-    Action("B", 1100, 25, 3),
+    Action("W", 0, 0, 4),
+    Action("B", 1250, 30, -1),
+    Action("W", 3000, 0 , 3),
 ]
 
 LEFT_auton_actions = []
 for action in RIGHT_auton_actions:
     if action.action == "L":
-        LEFT_auton_actions.append(Action("R", action.degrees, action.velocity, action.i_o_id))
+        LEFT_auton_actions.append(Action("R", action.degrees, action.velocity, action.special))
     if action.action == "R":
-        LEFT_auton_actions.append(Action("L", action.degrees, action.velocity, action.i_o_id))
+        LEFT_auton_actions.append(Action("L", action.degrees, action.velocity, action.special))
     else:
-        LEFT_auton_actions.append(Action(action.action, action.degrees, action.velocity, action.i_o_id))
+        LEFT_auton_actions.append(Action(action.action, action.degrees, action.velocity, action.special))
 
 SKILLS_auton_actions = [
     Action("F", 100, 10),
     Action("B", 1300, 100),
 ]
 
+SUPER_SKILLS_auton_actions = RIGHT_auton_actions + [
+    Action("F", 300, 25),
+    Action("R", 150, 15),
+    Action("F", 500, 15, 2),
+    Action("F", 200, 25)
+]
+
 def autonomous():
+    aligner.set(not aligner.value())
     if SIDE == "RIGHT":
         auton_actions = RIGHT_auton_actions.copy()
     elif SIDE == "LEFT":
@@ -230,7 +232,6 @@ def autonomous():
     while True:
         if len(auton_actions) != 0:
             auton_actions[0].execute()
-            print(auton_actions[0].i_o_id, auton_actions[0].action)
             auton_actions.pop(0)
         wait(20, MSEC)
 
@@ -243,4 +244,5 @@ brain.screen.print("""
  |_| \\_|\\__,_|\\__, |___/ |_| |_|\\___/ \\__|  \\__,_|_|   \\__,_|\\__, |___/
               |___/                                          |___/
 """)
+Thread(temp)
 comp = Competition(user_control, autonomous)
