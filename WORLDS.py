@@ -3,6 +3,7 @@ import math
 
 #--------- Program Settings ---------
 SIDE = "LEFT" #"LEFT", "RIGHT", or "SKILLS"
+DEBUG = True
 
 brain=Brain()
 motorLeft_1 = Motor(Ports.PORT1, GearSetting.RATIO_6_1, False)
@@ -21,7 +22,7 @@ aligner = DigitalOut(brain.three_wire_port.b)
 descorer = DigitalOut(brain.three_wire_port.c) #also stopper
 inertial = Inertial(Ports.PORT9)
 bdist = Distance(Ports.PORT19)
-ldist = Distance(Ports.PORT20)
+fdist = Distance(Ports.PORT20)
 
 controller_1 = Controller(PRIMARY)
 controller_2 = Controller(PARTNER)
@@ -108,7 +109,7 @@ def temp():
 
 def it(intake):
     for i, vel in enum(intake):
-        [intakeMotor, secondMotor, flapper][i].set_velocity(70 * math.fabs(vel), PERCENT)
+        [intakeMotor, secondMotor, flapper][i].set_velocity(85 * math.fabs(vel), PERCENT)
         [intakeMotor, secondMotor, flapper][i].spin(FORWARD if vel > 0 else REVERSE)
 
 def pistons():
@@ -139,6 +140,7 @@ class PID:
         i_term = self.ki * self.integral
         d_term = self.kd * (error - self.previous_error) / dt if dt > 0 else 0
         self.previous_error = error
+        #print("P:", round(p_term, 2), "I:", round(i_term, 2), "D:", round(d_term, 2))
         return p_term + i_term + d_term
 
     def reset(self):
@@ -146,30 +148,40 @@ class PID:
         self.integral = 0
 
 def PIDdrive(target_distance: float, max_voltage: float = 10,
-             acceleration: float = 0.06, inertia: float = 0.0003, drag: float = 0.001,
-             correction_rate: float = 0.02, timeout: int = 10000):
+             acceleration: float = 0.04, inertia: float = 0.006, drag: float = 0.00125,
+             correction_rate: float = 0.005, timeout: int = 2000, sensor = bdist, debug: bool = False):
     drivePID = PID(acceleration, inertia, drag)
     start_time = brain.timer.time(MSEC)
-    start_distance = bdist.object_distance(MM)
     start_rotation = inertial.rotation()
+    start_distance = sensor.object_distance(MM)
+    current_distance = start_distance
     while brain.timer.time(MSEC) - start_time < timeout:
-        error = target_distance + start_distance - bdist.object_distance(MM)
+        if sensor.object_distance() != 9999:
+            current_distance = sensor.object_distance()
+        if sensor == bdist:
+            error = target_distance + start_distance - current_distance
+        elif sensor == fdist:
+            error = target_distance - start_distance + current_distance
         if math.fabs(error) <= 8:
             break
         pid_output = drivePID.calculate(error)
         motor_voltage = max(-max_voltage, min(max_voltage, pid_output))
-        print(error, motor_voltage)
+        if math.fabs(motor_voltage) < 0.3:
+            break
+        correction = correction_rate * (inertial.rotation() - start_rotation)
+        if debug:
+            print(bdist.object_distance(), fdist.object_distance())
         for motor in [motorLeft_1, motorLeft_2, motorLeft_3]:
-            motor.spin(FORWARD, motor_voltage - (correction_rate * ((inertial.rotation() - start_rotation) ** 3)), VOLT)
+            motor.spin(FORWARD, motor_voltage - correction, VOLT)
         for motor in [motorRight_1, motorRight_2, motorRight_3]:
-            motor.spin(FORWARD, motor_voltage + (correction_rate * ((inertial.rotation() - start_rotation) ** 3)), VOLT)
+            motor.spin(FORWARD, motor_voltage + correction, VOLT)
         wait(10, MSEC)
         for motor in [motorLeft_1, motorLeft_2, motorLeft_3, motorRight_1, motorRight_2, motorRight_3]:
             motor.stop()
 
 def PIDrotate(target_degrees: float, max_voltage: float = 10,
               acceleration: float = 0.35, inertia: float = 0.003, drag: float = 0.0002,
-              timeout: int = 10000):
+              timeout: int = 2000, debug: bool = False):
     rotatePID = PID(acceleration, inertia, drag)
     start_time = brain.timer.time(MSEC)
     start_rotation = inertial.rotation()
@@ -179,7 +191,8 @@ def PIDrotate(target_degrees: float, max_voltage: float = 10,
             break
         pid_output = rotatePID.calculate(error)
         motor_voltage = max(-max_voltage, min(max_voltage, pid_output))
-        print(error, motor_voltage)
+        if debug:
+            print(error, motor_voltage)
         for l_motor in [motorLeft_1, motorLeft_2, motorLeft_3]:
             l_motor.spin(FORWARD, motor_voltage, VOLT)
         for r_motor in [motorRight_1, motorRight_2, motorRight_3]:
@@ -188,10 +201,61 @@ def PIDrotate(target_degrees: float, max_voltage: float = 10,
         for motor in [motorLeft_1, motorLeft_2, motorLeft_3, motorRight_1, motorRight_2, motorRight_3]:
             motor.stop()
 
+class ActionDeprecated: #One unit of action run during auton
+    def __init__(self, action, degrees, velocity=50, intake: tuple = (), pistons: tuple = (0, 0), stopIntake=True):
+        self.action = action
+        self.degrees = degrees
+        self.velocity = velocity
+        self.intake = intake
+        self.pistons = pistons
+        self.stopIntake = stopIntake
+    def execute(self):
+        it(self.intake)
+        if self.pistons[0]:
+            pistons()
+        if self.pistons[1]:
+            ds()
+        for motor in motors:
+            motor.set_velocity(self.velocity, PERCENT)
+        if self.action.upper() in ["F", "FWD","FORWARD"]:
+            for i, motor in enum(motors):
+                motor.spin_for(FORWARD, self.degrees, DEGREES, i == len(motors) - 1)
+        elif self.action.upper() in ["FT","FORWARD TIME"]:
+            for i, motor in enum(motors):
+                motor.spin(FORWARD, self.velocity, PERCENT)
+            wait(self.degrees, MSEC) #use degrees as milliseconds here
+            for i, motor in enum(motors):
+                motor.stop()
+        elif self.action.upper() in ["B", "BWD", "BACKWARD"]:
+            for i, motor in enum(motors):
+                motor.spin_for(REVERSE, self.degrees, DEGREES, i == len(motors) - 1)
+        elif self.action.upper() in ["BT","BACKWARD TIME"]:
+            for i, motor in enum(motors):
+                motor.spin(REVERSE, self.velocity, PERCENT)
+            wait(self.degrees, MSEC) #use degrees as milliseconds here
+            for i, motor in enum(motors):
+                motor.stop()
+        elif self.action.upper() in ["L", "LEFT"]:
+            for l_motor in L_MOTORS:
+                l_motor.spin_for(REVERSE, self.degrees, DEGREES, False)
+            for i, r_motor in enum(R_MOTORS):
+                r_motor.spin_for(FORWARD, self.degrees, DEGREES, i == len(R_MOTORS) - 1)
+        elif self.action.upper() in ["R", "RIGHT"]:
+            for l_motor in L_MOTORS:
+                l_motor.spin_for(FORWARD, self.degrees, DEGREES, False)
+            for i, r_motor in enum(R_MOTORS):
+                r_motor.spin_for(REVERSE, self.degrees, DEGREES, i == len(R_MOTORS) - 1)
+        elif self.action.upper() in ["W", "WAIT"]:
+            sleep(self.degrees) #degrees used as milliseconds here        
+        if self.stopIntake:
+            intakeMotor.stop()
+            secondMotor.stop()
+            flapper.stop()
+
 class Action: #One unit of action run during auton
     def __init__(self, action: str, amount: float, max_voltage: float = 10,
-                 correction_rate: float = 0.7, timeout: int = 10000,
-                 intake: tuple = (), pistons: tuple = (0, 0)):
+                 correction_rate: float = 0.7, timeout: int = 2000,
+                 intake: tuple = (), pistons: tuple = (0, 0), sensor = bdist):
         self.action = action
         self.amount = amount
         self.max_voltage = max_voltage
@@ -199,6 +263,7 @@ class Action: #One unit of action run during auton
         self.timeout = timeout
         self.intake = intake
         self.pistons = pistons
+        self.sensor = sensor
     def execute(self):
         it(self.intake)
         if self.pistons[0]:
@@ -207,7 +272,7 @@ class Action: #One unit of action run during auton
             ds()
         if self.action.upper() in ["M", "MOVE"]:
             PIDdrive(self.amount, max_voltage=10,
-                     correction_rate=self.correction_rate, timeout=self.timeout)
+                     correction_rate=self.correction_rate, timeout=self.timeout, sensor=self.sensor, debug=DEBUG)
         elif self.action.upper() in ["T", "TURN"]:
             PIDrotate(self.amount, max_voltage=10,
                       timeout=self.timeout)
@@ -253,12 +318,15 @@ r_auton = [
 ]
 
 l_auton = [
-    Action("M", 570, intake=INTAKE),
-    Action("T", -30),
-    Action("M", 500, max_voltage=6, intake=INTAKE),
-    Action("M", -275),
-    Action("T", -115),
-    Action("M", -200, max_voltage=8, intake=CENTER),
+    Action("M", 415, intake=INTAKE),
+    Action("T", 45),
+    Action("M", 350, max_voltage=6, intake=INTAKE),
+    Action("T", -90),
+    Action("M", 500, max_voltage=4, intake=INTAKE),
+    Action("M", -175, max_voltage=6, intake=INTAKE),
+    Action("T", -90),
+    ActionDeprecated("B", 750, 20, intake=CENTER),
+    Action("W", 4000, intake=CENTER, pistons=(0, 1)),
 ]
 
 auton = l_auton if SIDE == "LEFT" else r_auton
@@ -266,7 +334,7 @@ auton = l_auton if SIDE == "LEFT" else r_auton
 def autonomous():
     while len(auton) > 0:
         auton.pop(0).execute()
-        wait(100, MSEC)
+        wait(10, MSEC)
 
 inertial.calibrate() #Calibrate Inertial sensor
 while inertial.is_calibrating():
@@ -275,10 +343,10 @@ while inertial.is_calibrating():
 screen_status("Calibration Complete")
 while True:
     start_distance = bdist.object_distance()
-    print("Starting distance:", start_distance)
-    if start_distance < 2000:
+    print("Starting back distance:", start_distance)
+    if start_distance < 5000:
         break
-    wait(100, MSEC)
+    wait(500, MSEC)
 
 brain.screen.clear_screen()
 Thread(temp)
