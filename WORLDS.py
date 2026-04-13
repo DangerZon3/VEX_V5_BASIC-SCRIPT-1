@@ -36,8 +36,10 @@ posx = 0
 posy = 0
 sensitivity = 2
 
-for intakemotor in [intakeMotor, secondMotor, flapper]:
-    intakemotor.set_velocity(70, PERCENT)
+intakeMotor.set_velocity(80, PERCENT)
+secondMotor.set_velocity(80, PERCENT)
+flapper.set_velocity(50, PERCENT)
+
 
 def enum(iterable): #enumerate() disallowed in VEX Python
     index = 0
@@ -180,7 +182,7 @@ def PIDdrive(target_distance: float, max_voltage: float = 10,
             motor.stop()
 
 def PIDrotate(target_degrees: float, max_voltage: float = 10,
-              acceleration: float = 0.35, inertia: float = 0.003, drag: float = 0.0002,
+              acceleration: float = 0.36, inertia: float = 0.003, drag: float = 0.0002,
               timeout: int = 2000, debug: bool = False):
     rotatePID = PID(acceleration, inertia, drag)
     start_time = brain.timer.time(MSEC)
@@ -202,7 +204,7 @@ def PIDrotate(target_degrees: float, max_voltage: float = 10,
             motor.stop()
 
 class ActionDeprecated: #One unit of action run during auton
-    def __init__(self, action, degrees, velocity=50, intake: tuple = (), pistons: tuple = (0, 0), stopIntake=True):
+    def __init__(self, action: str, degrees: float, velocity: float = 50, intake: tuple = (), pistons: tuple = (0, 0), stopIntake: bool = True):
         self.action = action
         self.degrees = degrees
         self.velocity = velocity
@@ -280,9 +282,11 @@ class Action: #One unit of action run during auton
             sleep(self.amount)
         for motor in motors:
             motor.stop()
-        for intakemotor in [intakeMotor, secondMotor, flapper]:
-            intakemotor.set_velocity(70, PERCENT)
+        for intakemotor in [intakeMotor, secondMotor]:
+            intakemotor.set_velocity(80, PERCENT)
             intakemotor.stop()
+        flapper.set_velocity(50, PERCENT)
+        flapper.stop()
 
 def user_control():
     did_intake = False
@@ -317,16 +321,37 @@ r_auton = [
     Action("T", -90),
 ]
 
+#l_auton = [
+   #Action("M", 415),
+   #Action("T", 45),
+   #Action("M", 375, max_voltage=6),
+    #Action("T", -90, intake=INTAKE),
+    #ActionDeprecated("F", 1225, 20, intake=INTAKE),
+    #Action("W", 100),
+    #ActionDeprecated("B", 300, 10),
+    #Action("T", -85),
+    #ActionDeprecated("B", 725, 20),
+    #Action("W", 750, intake=CENTER, pistons=(0, 1)),
+    #ActionDeprecated("F", 1000, 20, pistons=(0, 1)),
+    #Action("M", 1000, max_voltage=10, sensor=fdist),
+#]
 l_auton = [
-    Action("M", 415, intake=INTAKE),
-    Action("T", 45),
-    Action("M", 350, max_voltage=6, intake=INTAKE),
-    Action("T", -90),
-    Action("M", 500, max_voltage=4, intake=INTAKE),
-    Action("M", -175, max_voltage=6, intake=INTAKE),
-    Action("T", -90),
-    ActionDeprecated("B", 750, 20, intake=CENTER),
-    Action("W", 4000, intake=CENTER, pistons=(0, 1)),
+    #Action("T", 20, max_voltage=5),
+    Action("M", 300, max_voltage=7, intake=INTAKE),
+    ActionDeprecated("F", 1000, 25, intake=INTAKE),
+    Action("W", 100),
+    ActionDeprecated("B", 350, 15),
+    Action("T", -105, max_voltage=8),
+    ActionDeprecated("B", 785, 20),
+    Action("W", 1000, intake=CENTER, pistons=(0, 1)),
+    ActionDeprecated("F", 60, 25, pistons=(0, 1)),
+    Action("T", 15, max_voltage=12),
+    ActionDeprecated("F", 1800, 25, pistons=(1, 1)),
+    Action("T", -55, max_voltage=10),
+    ActionDeprecated("F", 900, 40),
+    Action("W", 1000, intake=INTAKE),
+    Action("M", -650, max_voltage=10, sensor=fdist, pistons=(1, 0)),
+    Action("W", 2000, intake=UPPER)
 ]
 
 auton = l_auton if SIDE == "LEFT" else r_auton
