@@ -2,7 +2,7 @@ from vex import *
 import math
 
 #--------- Program Settings ---------
-SIDE = "LEFT" #"LEFT", "RIGHT", or "SKILLS"
+SIDE = "RIGHT" #"LEFT", "RIGHT", or "SKILLS"
 DEBUG = True
 
 brain=Brain()
@@ -36,8 +36,8 @@ posx = 0
 posy = 0
 sensitivity = 2
 
-intakeMotor.set_velocity(80, PERCENT)
-secondMotor.set_velocity(80, PERCENT)
+intakeMotor.set_velocity(90, PERCENT)
+secondMotor.set_velocity(90, PERCENT)
 flapper.set_velocity(50, PERCENT)
 
 
@@ -256,7 +256,7 @@ class ActionDeprecated: #One unit of action run during auton
 
 class Action: #One unit of action run during auton
     def __init__(self, action: str, amount: float, max_voltage: float = 10,
-                 correction_rate: float = 0.7, timeout: int = 2000,
+                 correction_rate: float = 0.7, timeout: int = 1500,
                  intake: tuple = (), pistons: tuple = (0, 0), sensor = bdist):
         self.action = action
         self.amount = amount
@@ -273,11 +273,10 @@ class Action: #One unit of action run during auton
         if self.pistons[1]:
             ds()
         if self.action.upper() in ["M", "MOVE"]:
-            PIDdrive(self.amount, max_voltage=10,
+            PIDdrive(self.amount, max_voltage=self.max_voltage,
                      correction_rate=self.correction_rate, timeout=self.timeout, sensor=self.sensor, debug=DEBUG)
         elif self.action.upper() in ["T", "TURN"]:
-            PIDrotate(self.amount, max_voltage=10,
-                      timeout=self.timeout)
+            PIDrotate(self.amount, max_voltage=self.max_voltage, timeout=self.timeout)
         elif self.action.upper() in ["W", "WAIT"]:
             sleep(self.amount)
         for motor in motors:
@@ -315,42 +314,41 @@ def user_control():
         wait(20, MSEC)
 
 r_auton = [
-    Action("M", 600, intake=INTAKE),
-    Action("T", 45),
-    Action("M", 300, max_voltage=6, intake=INTAKE),
-    Action("T", -90),
+    Action("M", 716, max_voltage=8, intake=INTAKE),
+    Action("W", 25),
+    Action("T", -70, max_voltage=7),
+    ActionDeprecated("F", 525, 30),
+    Action("W", 1400, intake=LOWER),
+    ActionDeprecated("B", 2050, 40),
+    Action("T", -128, max_voltage=6, pistons=(1, 0)),
+    ActionDeprecated("F", 500, 35),
+    Action("W", 1100, intake=INTAKE),
+    Action("M", -650, max_voltage=10, sensor=fdist, pistons=(1, 1)),
+    Action("W", 1200, intake=UPPER),
+
+    Action("M", 200, max_voltage=10, sensor=fdist),
+    Action("T", 135, max_voltage=10, pistons=(0,1)),
+    ActionDeprecated("F", 300, 80),
+    Action("T", 45, max_voltage=10),
+    ActionDeprecated("F", 1000, 100),
 ]
 
-#l_auton = [
-   #Action("M", 415),
-   #Action("T", 45),
-   #Action("M", 375, max_voltage=6),
-    #Action("T", -90, intake=INTAKE),
-    #ActionDeprecated("F", 1225, 20, intake=INTAKE),
-    #Action("W", 100),
-    #ActionDeprecated("B", 300, 10),
-    #Action("T", -85),
-    #ActionDeprecated("B", 725, 20),
-    #Action("W", 750, intake=CENTER, pistons=(0, 1)),
-    #ActionDeprecated("F", 1000, 20, pistons=(0, 1)),
-    #Action("M", 1000, max_voltage=10, sensor=fdist),
-#]
 l_auton = [
     #Action("T", 20, max_voltage=5),
     Action("M", 300, max_voltage=7, intake=INTAKE),
-    ActionDeprecated("F", 1000, 25, intake=INTAKE),
+    ActionDeprecated("F", 975, 25, intake=INTAKE),
     Action("W", 100),
     ActionDeprecated("B", 350, 15),
     Action("T", -105, max_voltage=8),
     ActionDeprecated("B", 785, 20),
     Action("W", 1000, intake=CENTER, pistons=(0, 1)),
     ActionDeprecated("F", 60, 25, pistons=(0, 1)),
-    Action("T", 15, max_voltage=12),
-    ActionDeprecated("F", 1800, 25, pistons=(1, 1)),
-    Action("T", -55, max_voltage=10),
-    ActionDeprecated("F", 900, 40),
+    Action("T", 15, max_voltage=8),
+    ActionDeprecated("F", 1820, 25, pistons=(1, 0)),
+    Action("T", -54, max_voltage=10),
+    ActionDeprecated("F", 830, 45, intake=INTAKE),
     Action("W", 1000, intake=INTAKE),
-    Action("M", -650, max_voltage=10, sensor=fdist, pistons=(1, 0)),
+    Action("M", -650, max_voltage=10, sensor=fdist, pistons=(1, 1)),
     Action("W", 2000, intake=UPPER)
 ]
 
